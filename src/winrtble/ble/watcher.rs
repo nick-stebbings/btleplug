@@ -43,11 +43,17 @@ impl BLEWatcher {
             .unwrap();
         let ad_services = ad.ServiceUuids().unwrap();
         ad_services.Clear().unwrap();
+        println!("Adding service UUIDs, advertisement BEFORE: {:?}", ad.clone());
+
         for service in services {
+
+        println!("Service UUID: {:?}", service);
             ad_services
                 .Append(windows::core::GUID::from(service.as_u128()))
                 .unwrap();
         }
+
+        println!("Adding service UUIDs, advertisement AFTER: {:?}", ad.clone());
         self.watcher
             .SetScanningMode(BluetoothLEScanningMode::Active)
             .unwrap();
