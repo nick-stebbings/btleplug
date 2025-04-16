@@ -35,40 +35,50 @@ impl BLEWatcher {
 
     pub fn start(&self, filter: ScanFilter, on_received: AdvertismentEventHandler) -> Result<()> {
         let ScanFilter { services } = filter;
-        let ad = self
-            .watcher
-            .AdvertisementFilter()
-            .unwrap()
-            .Advertisement()
-            .unwrap();
-        let ad_services = ad.ServiceUuids().unwrap();
-        ad_services.Clear().unwrap();
-        println!("Adding service UUIDs, advertisement BEFORE: {:?}", ad.clone());
 
-        for service in services {
+        let services_filter: Vec<windows::core::GUID> = services
+            .iter()
+            .map(|uuid| windows::core::GUID::from_u128(uuid.as_u128()))
+            .collect();
 
-        println!("Service UUID: {:?}", service);
-            ad_services
-                .Append(windows::core::GUID::from(service.as_u128()))
-                .unwrap();
-        }
-
-        println!("Adding service UUIDs, advertisement AFTER: {:?}", ad.clone());
-        self.watcher
-            .SetScanningMode(BluetoothLEScanningMode::Active)
-            .unwrap();
-        self.watcher.SetAllowExtendedAdvertisements(true)?;
-        let handler: TypedEventHandler<
-            BluetoothLEAdvertisementWatcher,
-            BluetoothLEAdvertisementReceivedEventArgs,
-        > = TypedEventHandler::new(
+        let handler: TypedEventHandler<BluetoothLEAdvertisementWatcher, BluetoothLEAdvertisementReceivedEventArgs> = TypedEventHandler::new(
             move |_sender, args: &Option<BluetoothLEAdvertisementReceivedEventArgs>| {
-                if let Some(args) = args {
+                let Some(args) = args else {
+                    return Ok(());
+                };
+                if services_filter.len() == 0 {
                     on_received(args);
+                    return Ok(());
+                }
+                let Ok(advertisement) = args.Advertisement() else {
+                    return Ok(());
+                };
+                let Ok(advertised_services) = advertisement.ServiceUuids() else {
+                    return Ok(());
+                };
+                let Ok(size) = advertised_services.Size() else {
+                    return Ok(());
+                };
+                // Check each service UUID
+                for i in 0..size {
+                    let Ok(service_guid) = advertised_services.GetAt(i) else {
+                        continue;
+                    };
+                    
+                    println!("FOUND SERVICE {:?} at {:?}", service_guid.clone(), i.clone());
+                    println!("services_filter {:?}", services_filter);
+                    if services_filter.contains(&service_guid.into()) {
+                        on_received(args);
+                        break;
+                    }
                 }
                 Ok(())
             },
         );
+        self.watcher
+            .SetScanningMode(BluetoothLEScanningMode::Active)
+            .unwrap();
+        self.watcher.SetAllowExtendedAdvertisements(true)?;
 
         self.watcher.Received(&handler)?;
         self.watcher.Start()?;
