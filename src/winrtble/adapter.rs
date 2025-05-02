@@ -32,7 +32,7 @@ use windows::{
 #[derive(Clone)]
 pub struct Adapter {
     watcher: Arc<Mutex<BLEWatcher>>,
-    manager: Arc<AdapterManager<Peripheral>>,
+    pub manager: Arc<AdapterManager<Peripheral>>,
     radio: Radio,
 }
 
